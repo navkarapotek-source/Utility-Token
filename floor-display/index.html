@@ -4,19 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Floor Display — Token System Navkar</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2">
+  <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-
   <div class="top-bar">
     <div class="brand">
       <img src="../assets/images/logo.png" alt="Navkar">
       <div>
         <h1>Token System Navkar</h1>
-        <div class="sub">Floor Display</div>
+        <span>Floor Display</span>
       </div>
     </div>
     <div class="nav-links">
@@ -26,7 +22,7 @@
     </div>
   </div>
 
-  <div class="container-wide fade-in">
+  <div class="container-wide">
     <div id="summaryBar" class="summary-bar" style="display:none;">
       <div class="summary-item total">
         <div class="number" id="totalCount">0</div>
@@ -43,9 +39,9 @@
     </div>
 
     <div id="emptyView" style="display:none;text-align:center;padding:80px 20px;">
-      <div style="width:72px;height:72px;background:linear-gradient(135deg,var(--green),#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:36px;color:white;box-shadow:0 8px 24px var(--green-glow);">&#10003;</div>
-      <h2 style="margin-top:16px;font-weight:600;">All tokens delivered!</h2>
-      <p style="color:var(--text-secondary);margin-top:6px;">No waiting customers</p>
+      <div style="font-size:64px;color:var(--green);">&#10003;</div>
+      <h2 style="margin-top:16px;">All tokens delivered!</h2>
+      <p style="color:var(--text-secondary);">No waiting customers</p>
     </div>
 
     <div id="tokenGrid" class="token-grid" style="display:none;"></div>
@@ -78,7 +74,7 @@
           rebuildCards();
         }, error => {
           document.getElementById('loadingView').innerHTML =
-            '<p style="color:var(--red);font-size:14px;">Connection error. Retrying...</p>';
+            '<p style="color:var(--red);">Connection error. Retrying...</p>';
           console.error('Floor display error:', error);
           setTimeout(() => location.reload(), 5000);
         });
@@ -101,10 +97,9 @@
       const grid = document.getElementById('tokenGrid');
       grid.innerHTML = '';
 
-      sorted.forEach((t, i) => {
+      sorted.forEach(t => {
         const card = document.createElement('div');
         card.className = `token-card ${t.urgency}`;
-        card.style.animationDelay = `${i * 0.05}s`;
         card.dataset.tokenId = t.id;
         card.dataset.checkIn = t.checkInTimeMillis;
 

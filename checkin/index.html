@@ -4,19 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Customer Check-in — Token System Navkar</title>
-  <link rel="stylesheet" href="../assets/css/style.css?v=2">
+  <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-
   <div class="top-bar">
     <div class="brand">
       <img src="../assets/images/logo.png" alt="Navkar">
       <div>
         <h1>Token System Navkar</h1>
-        <div class="sub">Customer Check-in</div>
+        <span>Customer Check-in</span>
       </div>
     </div>
     <div class="nav-links">
@@ -26,18 +22,17 @@
     </div>
   </div>
 
-  <div class="container fade-in">
+  <div class="container">
     <div class="card" id="checkin-card">
       <div class="card-title">New Customer Check-in</div>
-      <div class="card-subtitle">Select your medical store or enter as walk-in customer</div>
 
       <div class="error-msg" id="errorMsg"></div>
 
       <div id="formSection">
         <div class="form-group search-wrapper">
-          <label>Registered Party</label>
+          <label>Registered Party (search by name or code)</label>
           <input type="text" class="form-control" id="partySearch"
-                 placeholder="Search by name or code..." autocomplete="off">
+                 placeholder="Type to search medical store..." autocomplete="off">
           <div class="dropdown-list" id="partyDropdown"></div>
         </div>
 
@@ -46,13 +41,13 @@
         <div class="form-group">
           <label>Walk-in Customer Name</label>
           <input type="text" class="form-control" id="walkinName"
-                 placeholder="Enter name if not registered" disabled>
+                 placeholder="Enter name if not in list" disabled>
         </div>
 
         <div class="form-group">
-          <label>Mobile Number</label>
+          <label>Mobile Number (10 digits)</label>
           <input type="tel" class="form-control" id="mobileNumber"
-                 placeholder="Enter 10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]*">
+                 placeholder="9876543210" maxlength="10" inputmode="numeric" pattern="[0-9]*">
         </div>
 
         <button class="btn btn-primary btn-block" id="generateBtn" onclick="generateToken()">
@@ -62,12 +57,11 @@
 
       <div id="confirmationSection" style="display:none;">
         <div class="confirmation-card">
-          <div class="check-icon">&#10003;</div>
-          <div style="font-size:15px;color:var(--text-secondary);font-weight:500;">Your Daily Token</div>
+          <div style="font-size:16px;color:var(--text-secondary);">Your Daily Token</div>
           <div class="big-token" id="tokenNumberDisplay">T-1</div>
-          <div class="sub-text">Delivery Target: <span id="targetDisplay">20</span> Minutes</div>
-          <div style="font-size:15px;margin-top:10px;color:var(--text-secondary);" id="partyDisplay"></div>
-          <button class="btn btn-primary" onclick="resetForm()" style="margin-top:24px;">
+          <div class="sub-text">Delivery Target: <span id="targetDisplay">20</span> Mins</div>
+          <div style="font-size:15px;margin-top:8px;" id="partyDisplay"></div>
+          <button class="btn btn-primary" onclick="resetForm()" style="margin-top:20px;">
             Check-in Another Customer
           </button>
         </div>
@@ -121,7 +115,7 @@
           );
           dropdown.innerHTML = '';
           if (filtered.length === 0) {
-            dropdown.innerHTML = '<div class="dropdown-item" style="color:var(--text-muted);">No parties found</div>';
+            dropdown.innerHTML = '<div class="dropdown-item" style="color:#999;">No parties found</div>';
           } else {
             filtered.slice(0, 50).forEach(p => {
               const div = document.createElement('div');

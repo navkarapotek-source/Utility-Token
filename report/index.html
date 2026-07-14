@@ -7,16 +7,12 @@
   <link rel="stylesheet" href="../assets/css/style.css?v=2">
 </head>
 <body>
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-
   <div class="top-bar">
     <div class="brand">
       <img src="../assets/images/logo.png" alt="Navkar">
       <div>
         <h1>Token System Navkar</h1>
-        <div class="sub">Daily Report</div>
+        <span>Daily Report</span>
       </div>
     </div>
     <div class="nav-links">
@@ -26,7 +22,7 @@
     </div>
   </div>
 
-  <div class="container-wide fade-in">
+  <div class="container-wide">
     <div class="card">
       <div class="card-title">Daily Report</div>
 
@@ -34,7 +30,7 @@
         <button onclick="prevDay()">&#8592;</button>
         <div class="date-display" id="dateDisplay"></div>
         <button onclick="nextDay()">&#8594;</button>
-        <button onclick="goToday()" class="btn btn-outline btn-sm" style="border-radius:var(--radius-xs);">Today</button>
+        <button onclick="goToday()" style="font-size:14px;padding:8px 12px;">Today</button>
       </div>
 
       <div id="summaryBar" class="summary-bar" style="display:none;">
@@ -48,7 +44,7 @@
         </div>
         <div class="summary-item delayed">
           <div class="number" id="delayedCount">0</div>
-          <div class="label">Delayed (>20m)</div>
+          <div class="label">Delayed (&gt;20m)</div>
         </div>
       </div>
 
@@ -86,8 +82,8 @@
       </div>
 
       <div id="emptyView" style="display:none;text-align:center;padding:60px 20px;">
-        <div style="width:56px;height:56px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;color:var(--text-muted);">&#128196;</div>
-        <h3 style="font-weight:600;color:var(--text-secondary);">No tokens for this date</h3>
+        <div style="font-size:48px;color:var(--text-secondary);">&#128196;</div>
+        <h3 style="margin-top:12px;color:var(--text-secondary);">No tokens for this date</h3>
       </div>
     </div>
   </div>
@@ -125,7 +121,7 @@
           renderReport(tokens);
         }, error => {
           document.getElementById('loadingView').innerHTML =
-            '<p style="color:var(--red);font-size:14px;">Error loading report.</p>';
+            '<p style="color:var(--red);">Error loading report.</p>';
           console.error('Report error:', error);
         });
     }
@@ -159,10 +155,9 @@
         const isDelayed = (t.waitMinutes || 0) > 20;
         const status = t.status === 'DELIVERED'
           ? (isDelayed ? '<span class="delay-badge yes">Delayed</span>' : '<span class="delay-badge no">Delivered</span>')
-          : '<span style="color:var(--yellow);font-weight:600;">Waiting</span>';
+          : '<span style="color:#F57F17;font-weight:600;">Waiting</span>';
 
         const tr = document.createElement('tr');
-        tr.style.animationDelay = `${i * 0.03}s`;
         tr.innerHTML = `
           <td>${i + 1}</td>
           <td><strong>${t.tokenNumber || '-'}</strong></td>
