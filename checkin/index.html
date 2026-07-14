@@ -7,11 +7,16 @@
   <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
   <div class="top-bar">
     <div class="brand">
+      <img src="../assets/images/logo.png" alt="Navkar" style="height:40px;width:auto;border-radius:8px;">
       <div>
         <h1>Token System Navkar</h1>
-        <span>Customer Check-in</span>
+        <div class="sub">Customer Check-in</div>
       </div>
     </div>
     <div class="nav-links">
@@ -21,32 +26,33 @@
     </div>
   </div>
 
-  <div class="container">
+  <div class="container fade-in">
     <div class="card" id="checkin-card">
       <div class="card-title">New Customer Check-in</div>
+      <div class="card-subtitle">Select your medical store or enter as walk-in customer</div>
 
       <div class="error-msg" id="errorMsg"></div>
 
       <div id="formSection">
         <div class="form-group search-wrapper">
-          <label>Registered Party (search by name or code)</label>
+          <label>Registered Party</label>
           <input type="text" class="form-control" id="partySearch"
-                 placeholder="Type to search medical store..." autocomplete="off">
+                 placeholder="Search by name or code..." autocomplete="off">
           <div class="dropdown-list" id="partyDropdown"></div>
         </div>
 
-        <div style="text-align:center;color:var(--text-secondary);margin:12px 0;font-size:14px;font-weight:500;">— OR —</div>
+        <div class="divider">OR</div>
 
         <div class="form-group">
           <label>Walk-in Customer Name</label>
           <input type="text" class="form-control" id="walkinName"
-                 placeholder="Enter name if not in list" disabled>
+                 placeholder="Enter name if not registered" disabled>
         </div>
 
         <div class="form-group">
-          <label>Mobile Number (10 digits)</label>
+          <label>Mobile Number</label>
           <input type="tel" class="form-control" id="mobileNumber"
-                 placeholder="9876543210" maxlength="10" inputmode="numeric" pattern="[0-9]*">
+                 placeholder="Enter 10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]*">
         </div>
 
         <button class="btn btn-primary btn-block" id="generateBtn" onclick="generateToken()">
@@ -57,11 +63,11 @@
       <div id="confirmationSection" style="display:none;">
         <div class="confirmation-card">
           <div class="check-icon">&#10003;</div>
-          <div style="font-size:16px;color:var(--text-secondary);">Your Daily Token</div>
+          <div style="font-size:15px;color:var(--text-secondary);font-weight:500;">Your Daily Token</div>
           <div class="big-token" id="tokenNumberDisplay">T-1</div>
-          <div style="font-size:14px;color:var(--text-secondary);">Delivery Target: <span id="targetDisplay">20</span> Mins</div>
-          <div style="font-size:15px;margin-top:8px;" id="partyDisplay"></div>
-          <button class="btn btn-primary" onclick="resetForm()" style="margin-top:20px;">
+          <div class="sub-text">Delivery Target: <span id="targetDisplay">20</span> Minutes</div>
+          <div style="font-size:15px;margin-top:10px;color:var(--text-secondary);" id="partyDisplay"></div>
+          <button class="btn btn-primary" onclick="resetForm()" style="margin-top:24px;">
             Check-in Another Customer
           </button>
         </div>
@@ -79,15 +85,13 @@
     let allParties = [];
     let searchTimeout = null;
 
-    // Load parties on page load
     document.addEventListener('DOMContentLoaded', () => {
       loadParties();
       setupSearchListener();
     });
 
     function loadParties() {
-      db.collection("parties")
-        .get()
+      db.collection("parties").get()
         .then(snapshot => {
           allParties = [];
           snapshot.forEach(doc => {
@@ -111,15 +115,13 @@
             dropdown.classList.remove('show');
             return;
           }
-
           const filtered = allParties.filter(p =>
             p.code.toLowerCase().includes(query) ||
             p.name.toLowerCase().includes(query)
           );
-
           dropdown.innerHTML = '';
           if (filtered.length === 0) {
-            dropdown.innerHTML = '<div class="dropdown-item" style="color:#999;">No parties found</div>';
+            dropdown.innerHTML = '<div class="dropdown-item" style="color:var(--text-muted);">No parties found</div>';
           } else {
             filtered.slice(0, 50).forEach(p => {
               const div = document.createElement('div');
@@ -146,7 +148,6 @@
       document.getElementById('walkinName').value = '';
     }
 
-    // Enable walk-in when user types in party search (clears selection)
     document.getElementById('partySearch').addEventListener('focus', () => {
       if (selectedParty) {
         selectedParty = null;
@@ -154,7 +155,6 @@
       }
     });
 
-    // Mobile number validation
     document.getElementById('mobileNumber').addEventListener('input', (e) => {
       e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
     });
@@ -183,14 +183,12 @@
       const today = formatDate(now);
       const checkInTime = now.getTime();
 
-      // Timeout safeguard
       const timeout = setTimeout(() => {
         showError('Request timed out. Check your internet and Firestore rules.');
         btn.disabled = false;
         btn.textContent = 'Generate Token';
       }, 15000);
 
-      // Get all tokens and count today's in JS (avoids index issues)
       db.collection("tokens").get()
         .then(snapshot => {
           let count = 0;
@@ -237,6 +235,7 @@
     function showConfirmation(data) {
       document.getElementById('formSection').style.display = 'none';
       document.getElementById('confirmationSection').style.display = 'block';
+      document.getElementById('tokenNumberDisplay').textContent = data.tokenNumber;
       document.getElementById('partyDisplay').textContent =
         data.customerName ? `Party: ${data.customerName}` : '';
     }

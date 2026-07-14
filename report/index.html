@@ -7,11 +7,16 @@
   <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
   <div class="top-bar">
     <div class="brand">
+      <img src="../assets/images/logo.png" alt="Navkar" style="height:40px;width:auto;border-radius:8px;">
       <div>
         <h1>Token System Navkar</h1>
-        <span>Daily Report</span>
+        <div class="sub">Daily Report</div>
       </div>
     </div>
     <div class="nav-links">
@@ -21,13 +26,15 @@
     </div>
   </div>
 
-  <div class="container-wide">
+  <div class="container-wide fade-in">
     <div class="card">
+      <div class="card-title">Daily Report</div>
+
       <div class="date-nav">
         <button onclick="prevDay()">&#8592;</button>
         <div class="date-display" id="dateDisplay"></div>
         <button onclick="nextDay()">&#8594;</button>
-        <button onclick="goToday()" style="font-size:14px;padding:8px 12px;">Today</button>
+        <button onclick="goToday()" class="btn btn-outline btn-sm" style="border-radius:var(--radius-xs);">Today</button>
       </div>
 
       <div id="summaryBar" class="summary-bar" style="display:none;">
@@ -46,7 +53,7 @@
       </div>
 
       <div style="margin-bottom:16px;text-align:right;">
-        <button class="btn btn-success" onclick="exportCsv()">
+        <button class="btn btn-success btn-sm" onclick="exportCsv()">
           &#8595; Export CSV
         </button>
       </div>
@@ -55,28 +62,30 @@
         <div class="spinner"></div>
       </div>
 
-      <div id="reportContent" style="overflow-x:auto;display:none;">
-        <table class="report-table" id="reportTable">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Token</th>
-              <th>Code</th>
-              <th>Customer</th>
-              <th>Mobile</th>
-              <th>Check-in</th>
-              <th>Delivery</th>
-              <th>Wait</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="tableBody"></tbody>
-        </table>
+      <div id="reportContent" style="display:none;">
+        <div class="report-table-wrap">
+          <table class="report-table" id="reportTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Token</th>
+                <th>Code</th>
+                <th>Customer</th>
+                <th>Mobile</th>
+                <th>Check-in</th>
+                <th>Delivery</th>
+                <th>Wait</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div id="emptyView" style="display:none;text-align:center;padding:60px 20px;">
-        <div style="font-size:48px;color:var(--text-secondary);">&#128196;</div>
-        <h3 style="margin-top:12px;color:var(--text-secondary);">No tokens for this date</h3>
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px;color:var(--text-muted);">&#128196;</div>
+        <h3 style="font-weight:600;color:var(--text-secondary);">No tokens for this date</h3>
       </div>
     </div>
   </div>
@@ -88,7 +97,6 @@
   <script src="../assets/js/firebase-config.js"></script>
   <script>
     let currentDate = getTodayStr();
-    const TARGET = 20;
 
     document.addEventListener('DOMContentLoaded', () => {
       loadReport(currentDate);
@@ -115,7 +123,7 @@
           renderReport(tokens);
         }, error => {
           document.getElementById('loadingView').innerHTML =
-            '<p style="color:var(--red);">Error loading report.</p>';
+            '<p style="color:var(--red);font-size:14px;">Error loading report.</p>';
           console.error('Report error:', error);
         });
     }
@@ -135,7 +143,7 @@
 
       const total = tokens.length;
       const delivered = tokens.filter(t => t.status === 'DELIVERED').length;
-      const delayed = tokens.filter(t => (t.waitMinutes || 0) > TARGET).length;
+      const delayed = tokens.filter(t => (t.waitMinutes || 0) > 20).length;
 
       document.getElementById('totalCount').textContent = total;
       document.getElementById('deliveredCount').textContent = delivered;
@@ -146,12 +154,13 @@
 
       tokens.forEach((t, i) => {
         const wait = t.waitMinutes != null ? `${t.waitMinutes} min` : '-';
-        const isDelayed = (t.waitMinutes || 0) > TARGET;
+        const isDelayed = (t.waitMinutes || 0) > 20;
         const status = t.status === 'DELIVERED'
           ? (isDelayed ? '<span class="delay-badge yes">Delayed</span>' : '<span class="delay-badge no">Delivered</span>')
-          : '<span style="color:#F57F17;font-weight:600;">Waiting</span>';
+          : '<span style="color:var(--yellow);font-weight:600;">Waiting</span>';
 
         const tr = document.createElement('tr');
+        tr.style.animationDelay = `${i * 0.03}s`;
         tr.innerHTML = `
           <td>${i + 1}</td>
           <td><strong>${t.tokenNumber || '-'}</strong></td>
@@ -186,50 +195,30 @@
     }
 
     function exportCsv() {
-      const rows = [];
-      const header = ['Sr No','Date','Token','Code','Customer','Mobile','Check-in','Delivery','Wait (min)','Status'];
-      rows.push(header.join(','));
-
       const table = document.getElementById('reportTable');
       const bodyRows = table.querySelectorAll('tbody tr');
-      bodyRows.forEach(tr => {
-        const cells = tr.querySelectorAll('td');
-        const row = [];
-        cells.forEach((cell, i) => {
-          let val = cell.textContent.trim();
-          row.push(`"${val}"`);
-        });
-        row.push(`"${currentDate}"`);
-        rows.push(row.join(','));
-      });
+      if (bodyRows.length === 0) { showToast('No data to export'); return; }
 
-      // Fix: add date to each row
-      const fixedRows = [header.join(',')];
+      const fixedRows = [];
+      fixedRows.push('"Sr No","Date","Token","Code","Customer","Mobile","Check-in","Delivery","Wait (min)","Status"');
+
       bodyRows.forEach((tr, i) => {
         const cells = tr.querySelectorAll('td');
-        const vals = [];
-        vals.push(`"${i + 1}"`);
-        vals.push(`"${currentDate}"`);
-        vals.push(`"${cells[1]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[2]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[3]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[4]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[5]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[6]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[7]?.textContent?.trim() || ''}"`);
-        vals.push(`"${cells[8]?.textContent?.trim() || ''}"`);
-        fixedRows.push(vals.join(','));
+        const val = (idx) => `"${cells[idx]?.textContent?.trim() || ''}"`;
+        fixedRows.push([
+          `"${i + 1}"`,
+          `"${currentDate}"`,
+          val(1), val(2), val(3), val(4), val(5), val(6), val(7), val(8)
+        ].join(','));
       });
 
-      const csv = fixedRows.join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([fixedRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `NavkarReport_${currentDate}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-
       showToast('Report exported!');
     }
 
