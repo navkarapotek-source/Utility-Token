@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Report — Token System Navkar</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+  <div class="top-bar">
+    <div class="brand">
+      <div>
+        <h1>Token System Navkar</h1>
+        <span>Daily Report</span>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="../checkin/">Check-in</a>
+      <a href="../floor-display/">Floor Display</a>
+      <a href="../report/" class="active">Daily Report</a>
+    </div>
+  </div>
+
+  <div class="container-wide">
+    <div class="card">
+      <div class="date-nav">
+        <button onclick="prevDay()">&#8592;</button>
+        <div class="date-display" id="dateDisplay"></div>
+        <button onclick="nextDay()">&#8594;</button>
+        <button onclick="goToday()" style="font-size:14px;padding:8px 12px;">Today</button>
+      </div>
+
+      <div id="summaryBar" class="summary-bar" style="display:none;">
+        <div class="summary-item total">
+          <div class="number" id="totalCount">0</div>
+          <div class="label">Total Tokens</div>
+        </div>
+        <div class="summary-item delivered">
+          <div class="number" id="deliveredCount">0</div>
+          <div class="label">Delivered</div>
+        </div>
+        <div class="summary-item delayed">
+          <div class="number" id="delayedCount">0</div>
+          <div class="label">Delayed (>20m)</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px;text-align:right;">
+        <button class="btn btn-success" onclick="exportCsv()">
+          &#8595; Export CSV
+        </button>
+      </div>
+
+      <div id="loadingView" class="loading">
+        <div class="spinner"></div>
+      </div>
+
+      <div id="reportContent" style="overflow-x:auto;display:none;">
+        <table class="report-table" id="reportTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Token</th>
+              <th>Code</th>
+              <th>Customer</th>
+              <th>Mobile</th>
+              <th>Check-in</th>
+              <th>Delivery</th>
+              <th>Wait</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyView" style="display:none;text-align:center;padding:60px 20px;">
+        <div style="font-size:48px;color:var(--text-secondary);">&#128196;</div>
+        <h3 style="margin-top:12px;color:var(--text-secondary);">No tokens for this date</h3>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="../assets/js/firebase-config.js"></script>
+  <script>
+    let currentDate = getTodayStr();
+    const TARGET = 20;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadReport(currentDate);
+    });
+
+    function loadReport(date) {
+      currentDate = date;
+      document.getElementById('dateDisplay').textContent = formatDisplayDate(date);
+      document.getElementById('loadingView').style.display = 'flex';
+      document.getElementById('reportContent').style.display = 'none';
+      document.getElementById('emptyView').style.display = 'none';
+      document.getElementById('summaryBar').style.display = 'none';
+
+      db.collection("tokens")
+        .onSnapshot(snapshot => {
+          const tokens = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.date === date) {
+              tokens.push({ id: doc.id, ...data });
+            }
+          });
+          tokens.sort((a, b) => (a.checkInTimeMillis || 0) - (b.checkInTimeMillis || 0));
+          renderReport(tokens);
+        }, error => {
+          document.getElementById('loadingView').innerHTML =
+            '<p style="color:var(--red);">Error loading report.</p>';
+          console.error('Report error:', error);
+        });
+    }
+
+    function renderReport(tokens) {
+      document.getElementById('loadingView').style.display = 'none';
+
+      if (tokens.length === 0) {
+        document.getElementById('emptyView').style.display = 'block';
+        document.getElementById('reportContent').style.display = 'none';
+        document.getElementById('summaryBar').style.display = 'none';
+        return;
+      }
+
+      document.getElementById('summaryBar').style.display = 'grid';
+      document.getElementById('reportContent').style.display = 'block';
+
+      const total = tokens.length;
+      const delivered = tokens.filter(t => t.status === 'DELIVERED').length;
+      const delayed = tokens.filter(t => (t.waitMinutes || 0) > TARGET).length;
+
+      document.getElementById('totalCount').textContent = total;
+      document.getElementById('deliveredCount').textContent = delivered;
+      document.getElementById('delayedCount').textContent = delayed;
+
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      tokens.forEach((t, i) => {
+        const wait = t.waitMinutes != null ? `${t.waitMinutes} min` : '-';
+        const isDelayed = (t.waitMinutes || 0) > TARGET;
+        const status = t.status === 'DELIVERED'
+          ? (isDelayed ? '<span class="delay-badge yes">Delayed</span>' : '<span class="delay-badge no">Delivered</span>')
+          : '<span style="color:#F57F17;font-weight:600;">Waiting</span>';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i + 1}</td>
+          <td><strong>${t.tokenNumber || '-'}</strong></td>
+          <td>${t.customerCode || '-'}</td>
+          <td>${t.customerName || '-'}</td>
+          <td>${t.mobileNumber || '-'}</td>
+          <td>${formatTime(t.checkInTimeMillis)}</td>
+          <td>${t.deliveryTimeMillis ? formatTime(t.deliveryTimeMillis) : '-'}</td>
+          <td>${wait}</td>
+          <td>${status}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function prevDay() {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - 1);
+      loadReport(formatDate(d));
+    }
+
+    function nextDay() {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + 1);
+      if (formatDate(d) <= getTodayStr()) {
+        loadReport(formatDate(d));
+      }
+    }
+
+    function goToday() {
+      loadReport(getTodayStr());
+    }
+
+    function exportCsv() {
+      const rows = [];
+      const header = ['Sr No','Date','Token','Code','Customer','Mobile','Check-in','Delivery','Wait (min)','Status'];
+      rows.push(header.join(','));
+
+      const table = document.getElementById('reportTable');
+      const bodyRows = table.querySelectorAll('tbody tr');
+      bodyRows.forEach(tr => {
+        const cells = tr.querySelectorAll('td');
+        const row = [];
+        cells.forEach((cell, i) => {
+          let val = cell.textContent.trim();
+          row.push(`"${val}"`);
+        });
+        row.push(`"${currentDate}"`);
+        rows.push(row.join(','));
+      });
+
+      // Fix: add date to each row
+      const fixedRows = [header.join(',')];
+      bodyRows.forEach((tr, i) => {
+        const cells = tr.querySelectorAll('td');
+        const vals = [];
+        vals.push(`"${i + 1}"`);
+        vals.push(`"${currentDate}"`);
+        vals.push(`"${cells[1]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[2]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[3]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[4]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[5]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[6]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[7]?.textContent?.trim() || ''}"`);
+        vals.push(`"${cells[8]?.textContent?.trim() || ''}"`);
+        fixedRows.push(vals.join(','));
+      });
+
+      const csv = fixedRows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NavkarReport_${currentDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast('Report exported!');
+    }
+
+    function formatTime(millis) {
+      if (!millis) return '-';
+      const d = new Date(millis);
+      let h = d.getHours();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      const m = String(d.getMinutes()).padStart(2, '0');
+      return `${h}:${m} ${ampm}`;
+    }
+
+    function formatDisplayDate(str) {
+      const d = new Date(str + 'T00:00:00');
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    function formatDate(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getTodayStr() {
+      return formatDate(new Date());
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+  </script>
+</body>
+</html>
