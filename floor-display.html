@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Floor Display — Token System Navkar</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div class="top-bar">
+    <div class="brand">
+      <div>
+        <h1>Token System Navkar</h1>
+        <span>Floor Display</span>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="index.html">Check-in</a>
+      <a href="floor-display.html" class="active">Floor Display</a>
+      <a href="report.html">Daily Report</a>
+    </div>
+  </div>
+
+  <div class="container-wide">
+    <div id="summaryBar" class="summary-bar" style="display:none;">
+      <div class="summary-item total">
+        <div class="number" id="totalCount">0</div>
+        <div class="label">Waiting</div>
+      </div>
+      <div class="summary-item delayed">
+        <div class="number" id="delayedCount">0</div>
+        <div class="label">Overtime</div>
+      </div>
+    </div>
+
+    <div id="loadingView" class="loading">
+      <div class="spinner"></div>
+    </div>
+
+    <div id="emptyView" style="display:none;text-align:center;padding:80px 20px;">
+      <div style="font-size:64px;color:var(--green);">&#10003;</div>
+      <h2 style="margin-top:16px;">All tokens delivered!</h2>
+      <p style="color:var(--text-secondary);">No waiting customers</p>
+    </div>
+
+    <div id="tokenGrid" class="token-grid" style="display:none;"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  <script src="assets/js/firebase-config.js"></script>
+  <script>
+    const TARGET_MINUTES = 20;
+    let currentTokens = [];
+    let tickerId = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      observeWaitingTokens();
+      tickerId = setInterval(updateTimers, 1000);
+    });
+
+    function observeWaitingTokens() {
+      db.collection("tokens")
+        .onSnapshot(snapshot => {
+          currentTokens = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.status === "WAITING") {
+              currentTokens.push({ id: doc.id, ...data });
+            }
+          });
+          rebuildCards();
+        }, error => {
+          document.getElementById('loadingView').innerHTML =
+            '<p style="color:var(--red);">Connection error. Retrying...</p>';
+          console.error('Floor display error:', error);
+          setTimeout(() => location.reload(), 5000);
+        });
+    }
+
+    function rebuildCards() {
+      document.getElementById('loadingView').style.display = 'none';
+      document.getElementById('summaryBar').style.display = currentTokens.length > 0 ? 'grid' : 'none';
+      document.getElementById('emptyView').style.display = currentTokens.length === 0 ? 'block' : 'none';
+      document.getElementById('tokenGrid').style.display = currentTokens.length > 0 ? 'grid' : 'none';
+
+      if (currentTokens.length === 0) return;
+
+      const now = Date.now();
+      const sorted = getSortedTokens(now);
+
+      document.getElementById('totalCount').textContent = sorted.length;
+      document.getElementById('delayedCount').textContent = sorted.filter(t => t.urgency === 'red').length;
+
+      const grid = document.getElementById('tokenGrid');
+      grid.innerHTML = '';
+
+      sorted.forEach(t => {
+        const card = document.createElement('div');
+        card.className = `token-card ${t.urgency}`;
+        card.dataset.tokenId = t.id;
+        card.dataset.checkIn = t.checkInTimeMillis;
+
+        const remainingM = Math.floor(t.remainingSec / 60);
+        const remainingS = String(t.remainingSec % 60).padStart(2, '0');
+
+        let statusHTML = '';
+        if (t.urgency === 'green') {
+          statusHTML = `<div class="token-status status-green" data-timer>${remainingM}:${remainingS} left</div>`;
+        } else if (t.urgency === 'yellow') {
+          statusHTML = `<div class="token-status status-yellow" data-timer>${remainingM}:${remainingS} warning</div>`;
+        } else {
+          statusHTML = `<div class="token-status status-red" data-timer>OVERTIME +${t.overtimeMin}m</div>`;
+        }
+
+        card.innerHTML = `
+          <div class="token-number">${t.tokenNumber}</div>
+          ${t.customerCode ? `<div class="token-code">Code: ${t.customerCode}</div>` : ''}
+          <div class="token-name">${t.customerName}</div>
+          <div class="token-time">Checked in: ${formatTime(t.checkInTimeMillis)}</div>
+          ${statusHTML}
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function updateTimers() {
+      if (currentTokens.length === 0) return;
+
+      const now = Date.now();
+      const sorted = getSortedTokens(now);
+
+      document.getElementById('totalCount').textContent = sorted.length;
+      document.getElementById('delayedCount').textContent = sorted.filter(t => t.urgency === 'red').length;
+
+      // Update card classes and timer text in-place (no DOM rebuild)
+      const grid = document.getElementById('tokenGrid');
+      const cards = grid.children;
+
+      sorted.forEach((t, idx) => {
+        if (idx >= cards.length) return;
+        const card = cards[idx];
+        card.className = `token-card ${t.urgency}`;
+
+        const timerEl = card.querySelector('[data-timer]');
+        if (!timerEl) return;
+
+        if (t.urgency === 'red') {
+          timerEl.textContent = `OVERTIME +${t.overtimeMin}m`;
+        } else {
+          const m = Math.floor(t.remainingSec / 60);
+          const s = String(t.remainingSec % 60).padStart(2, '0');
+          timerEl.textContent = t.urgency === 'yellow'
+            ? `${m}:${s} warning`
+            : `${m}:${s} left`;
+        }
+      });
+    }
+
+    function getSortedTokens(now) {
+      return currentTokens
+        .map(t => {
+          const elapsed = now - t.checkInTimeMillis;
+          const elapsedMin = Math.floor(elapsed / 60000);
+          const remainingSec = Math.max(0, Math.floor(((t.checkInTimeMillis + TARGET_MINUTES * 60000) - now) / 1000));
+          const overtimeMin = Math.max(0, elapsedMin - TARGET_MINUTES);
+          let urgency = 'green';
+          if (elapsedMin >= 20) urgency = 'red';
+          else if (elapsedMin >= 15) urgency = 'yellow';
+          return { ...t, elapsedMin, remainingSec, overtimeMin, urgency };
+        })
+        .sort((a, b) => {
+          const order = { red: 3, yellow: 2, green: 1 };
+          return order[b.urgency] - order[a.urgency] || a.remainingSec - b.remainingSec;
+        });
+    }
+
+    function formatTime(millis) {
+      const d = new Date(millis);
+      let h = d.getHours();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      const m = String(d.getMinutes()).padStart(2, '0');
+      return `${h}:${m} ${ampm}`;
+    }
+  </script>
+</body>
+</html>
