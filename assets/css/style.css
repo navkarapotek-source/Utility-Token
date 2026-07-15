@@ -1,15 +1,15 @@
 :root {
-  --primary: #6750A4;
-  --primary-dark: #4F378B;
-  --primary-light: #EADDFF;
-  --green: #4CAF50;
-  --yellow: #FFC107;
+  --primary: #006D5B;          /* teal / deep greenish‑blue */
+  --primary-dark: #004D40;     /* darker shade for depth */
+  --primary-light: #B2DFDB;    /* light teal for accents */
+  --green: #4CAF50;            /* keep for success states */
+  --yellow: #FFB300;           /* bright gold / yellow */
   --red: #F44336;
   --red-dark: #B71C1C;
-  --bg: #F5F5F5;
+  --bg: #FAFAFA;               /* off‑white background */
   --surface: #FFFFFF;
-  --text: #1D1B20;
-  --text-secondary: #625B71;
+  --text: #212121;             /* dark gray / near black for readability */
+  --text-secondary: #616161;   /* slightly lighter secondary text */
   --border: #E0E0E0;
   --shadow: 0 2px 8px rgba(0,0,0,0.08);
   --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
@@ -46,7 +46,8 @@ body {
   gap: 12px;
 }
 .top-bar .brand img {
-  height: 32px;
+  height: 3rem;
+  max-height: 48px;
   width: auto;
   border-radius: 6px;
 }
@@ -81,12 +82,14 @@ body {
 
 /* Container */
 .container {
-  max-width: 800px;
+  max-width: 1200px;
+  width: 100%;
   margin: 24px auto;
   padding: 0 16px;
 }
 .container-wide {
-  max-width: 1200px;
+  max-width: 1600px;
+  width: 100%;
   margin: 24px auto;
   padding: 0 16px;
 }
@@ -486,7 +489,7 @@ body {
     padding: 8px 12px;
     gap: 6px;
   }
-  .top-bar .brand img { height: 26px; }
+  .top-bar .brand img { height: 2.5rem; }
   .top-bar .brand h1 { font-size: 16px; }
   .top-bar .brand span { font-size: 12px; }
   .nav-links { justify-content: center; }
