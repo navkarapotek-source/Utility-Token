@@ -1,9 +1,9 @@
 :root {
-  --primary: #006D5B;          /* teal / deep greenish‑blue */
-  --primary-dark: #004D40;     /* darker shade for depth */
+  --primary: #108484;          /* teal / deep greenish‑blue */
+  --primary-dark: #0D6A6A;     /* teal as primary-dark */
   --primary-light: #B2DFDB;    /* light teal for accents */
   --green: #4CAF50;            /* keep for success states */
-  --yellow: #FFB300;           /* bright gold / yellow */
+  --yellow: #f7d02b;           /* user‑provided yellow */
   --red: #F44336;
   --red-dark: #B71C1C;
   --bg: #FAFAFA;               /* off‑white background */
@@ -32,7 +32,7 @@ body {
   padding: 10px 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 8px;
   box-shadow: var(--shadow);
@@ -50,6 +50,10 @@ body {
   max-height: 48px;
   width: auto;
   border-radius: 6px;
+  background: #ffffff; /* white bg to separate from teal */
+  padding: 4px;
+  box-sizing: border-box;
+  box-shadow: 0 0 4px rgba(0,0,0,0.2);
 }
 .top-bar .brand h1 {
   font-size: 22px;
