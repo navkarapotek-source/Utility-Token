@@ -148,6 +148,23 @@
       e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
     });
 
+    // -----------------------------------------------------------------
+    // Atomic token number generation using a Firestore transaction
+    // -----------------------------------------------------------------
+    function getNextTokenNumber(date) {
+      const counterRef = db.collection('counters').doc(date);
+      return db.runTransaction(async (t) => {
+        const doc = await t.get(counterRef);
+        let count = 0;
+        if (doc.exists) {
+          count = doc.data().count || 0;
+        }
+        const newCount = count + 1;
+        t.set(counterRef, { count: newCount }, { merge: true });
+        return `T-${newCount}`;
+      });
+    }
+
     function generateToken() {
       const errorEl = document.getElementById('errorMsg');
       errorEl.classList.remove('show');
@@ -178,15 +195,10 @@
         btn.textContent = 'Generate Token';
       }, 15000);
 
-      db.collection("tokens").get()
-        .then(snapshot => {
-          let count = 0;
-          snapshot.forEach(doc => {
-            if (doc.data().date === today) count++;
-          });
-          const tokenNum = `T-${count + 1}`;
-
-          return db.collection("tokens").add({
+      // Use transaction to get a unique token number
+      getNextTokenNumber(today)
+        .then(tokenNum => {
+          return db.collection('tokens').add({
             tokenNumber: tokenNum,
             customerCode: selectedParty ? selectedParty.code : null,
             customerName: customerName,
@@ -194,7 +206,7 @@
             mobileNumber: mobile,
             checkInTimeMillis: checkInTime,
             targetMinutes: 20,
-            status: "WAITING",
+            status: 'WAITING',
             receiverName: null,
             receiverPhone: null,
             deliveryTimeMillis: null,
@@ -206,11 +218,7 @@
           });
         })
         .then(tokenNum => {
-          showConfirmation({
-            tokenNumber: tokenNum,
-            customerName: customerName,
-            isRegisteredParty: selectedParty !== null
-          });
+          showConfirmation({ tokenNumber: tokenNum, customerName, isRegisteredParty: selectedParty !== null });
         })
         .catch(err => {
           clearTimeout(timeout);
@@ -225,8 +233,7 @@
       document.getElementById('formSection').style.display = 'none';
       document.getElementById('confirmationSection').style.display = 'block';
       document.getElementById('tokenNumberDisplay').textContent = data.tokenNumber;
-      document.getElementById('partyDisplay').textContent =
-        data.customerName ? `Party: ${data.customerName}` : '';
+      document.getElementById('partyDisplay').textContent = data.customerName ? `Party: ${data.customerName}` : '';
     }
 
     function resetForm() {
@@ -237,8 +244,9 @@
       document.getElementById('walkinName').value = '';
       document.getElementById('walkinName').disabled = false;
       document.getElementById('mobileNumber').value = '';
-      document.getElementById('generateBtn').disabled = false;
-      document.getElementById('generateBtn').textContent = 'Generate Token';
+      const btn = document.getElementById('generateBtn');
+      btn.disabled = false;
+      btn.textContent = 'Generate Token';
     }
 
     function showError(msg) {
