@@ -62,9 +62,8 @@ service cloud.firestore {
     </p>
   </div>
 
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="../../assets/js/firebase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="../../assets/js/supabase-config.js"></script>
   <script>
     async function uploadParties() {
       const fileInput = document.getElementById('csvFile');
@@ -115,20 +114,16 @@ service cloud.firestore {
         const total = unique.length;
         document.getElementById('progressText').textContent = `0 / ${total} parties uploaded`;
 
-        // Upload in batches of 500 (Firestore batch limit)
+        // Upload in batches of 500
         const BATCH_SIZE = 500;
         let uploaded = 0;
 
         for (let i = 0; i < unique.length; i += BATCH_SIZE) {
-          const batch = db.batch();
           const chunk = unique.slice(i, i + BATCH_SIZE);
 
-          chunk.forEach(p => {
-            const ref = db.collection("parties").doc();
-            batch.set(ref, p);
-          });
+          const { error } = await supabaseClient.from('parties').insert(chunk);
+          if (error) throw error;
 
-          await batch.commit();
           uploaded += chunk.length;
 
           const pct = Math.round((uploaded / total) * 100);
@@ -136,12 +131,12 @@ service cloud.firestore {
           document.getElementById('progressText').textContent = `${uploaded} / ${total} parties uploaded`;
         }
 
-        showStatus(`Success! ${total} parties uploaded to Firestore.`, 'success');
+        showStatus(`Success! ${total} parties uploaded to Supabase.`, 'success');
       } catch (err) {
         showStatus('Error: ' + err.message, 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Upload to Firestore';
+        btn.textContent = 'Upload to Supabase';
       }
     }
 

@@ -71,9 +71,8 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-  <script src="../assets/js/firebase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="../assets/js/supabase-config.js"></script>
   <script>
     // Global UI state
     let selectedParty = null;
@@ -89,16 +88,12 @@
     // Load parties for the dropdown
     // -----------------------------------------------------------------
     function loadParties() {
-      db.collection('parties').get()
-        .then(snapshot => {
-          allParties = [];
-          snapshot.forEach(doc => {
-            const data = doc.data();
-            allParties.push({ id: doc.id, code: data.code, name: data.name });
-          });
+      supabaseClient.from('parties').select('code, name')
+        .then(({ data, error }) => {
+          if (error) { console.warn('Parties load failed:', error); return; }
+          allParties = data || [];
           allParties.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-        })
-        .catch(err => console.warn('Parties load failed:', err));
+        });
     }
     // -----------------------------------------------------------------
     // Search dropdown handling
@@ -162,43 +157,6 @@
     });
 
     // -----------------------------------------------------------------
-    // Helper: simple delay (Promise) for back‑off
-    // -----------------------------------------------------------------
-    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    // -----------------------------------------------------------------
-    // Get next token number using a Firestore transaction (with retries)
-    // Guarantees unique numbers even with concurrent requests
-    // -----------------------------------------------------------------
-    async function getNextTokenNumber(date, maxRetries = 15) {
-      const counterRef = db.collection('counters').doc(date);
-      let attempt = 0;
-      while (attempt <= maxRetries) {
-        try {
-          return await db.runTransaction(async t => {
-            const doc = await t.get(counterRef);
-            let count = 0;
-            if (doc.exists) count = doc.data().count || 0;
-            const newCount = count + 1;
-            t.set(counterRef, { count: newCount }, { merge: true });
-            return `T-${newCount}`;
-          });
-        } catch (err) {
-          const is429 = err.code === 'resource-exhausted' || err.code === 'aborted' || (err.message && err.message.includes('429'));
-          if (is429 && attempt < maxRetries) {
-            const backoff = Math.pow(3, attempt) * 300; // 300ms, 900ms, 2700ms, …
-            console.warn(`Retry ${attempt + 1}/${maxRetries} – waiting ${backoff}ms`);
-            await delay(backoff);
-            attempt++;
-          } else {
-            throw err;
-          }
-        }
-      }
-      throw new Error('Transaction failed after all retries');
-    }
-
-    // -----------------------------------------------------------------
     // Main token generation flow
     // -----------------------------------------------------------------
     async function generateToken() {
@@ -227,9 +185,11 @@
 
       let tokenNum;
       try {
-        tokenNum = await getNextTokenNumber(today);
+        const { data, error: rpcError } = await supabaseClient.rpc('get_next_token_number', { p_date: today });
+        if (rpcError) throw rpcError;
+        tokenNum = data;
       } catch (err) {
-        console.error('Transaction failed:', err);
+        console.error('RPC failed:', err);
         showError('Server busy. Please try again.');
         btn.disabled = false;
         btn.textContent = 'Generate Token';
@@ -237,24 +197,25 @@
       }
 
       try {
-        await db.collection('tokens').doc(tokenNum).set({
-          tokenNumber: tokenNum,
-          customerCode: selectedParty ? selectedParty.code : null,
-          customerName: customerName,
-          isRegisteredParty: selectedParty !== null,
-          mobileNumber: mobile,
-          checkInTimeMillis: checkInTime,
-          targetMinutes: 20,
+        const { error: insertError } = await supabaseClient.from('tokens').insert({
+          token_number: tokenNum,
+          customer_code: selectedParty ? selectedParty.code : null,
+          customer_name: customerName,
+          is_registered_party: selectedParty !== null,
+          mobile_number: mobile,
+          check_in_time_millis: checkInTime,
+          target_minutes: 20,
           status: 'WAITING',
-          receiverName: null,
-          receiverPhone: null,
-          deliveryTimeMillis: null,
-          waitMinutes: null,
+          receiver_name: null,
+          receiver_phone: null,
+          delivery_time_millis: null,
+          wait_minutes: null,
           date: today
         });
+        if (insertError) throw insertError;
         showConfirmation({ tokenNumber: tokenNum, customerName, isRegisteredParty: selectedParty !== null });
       } catch (writeErr) {
-        console.error('Error writing token document:', writeErr);
+        console.error('Error writing token:', writeErr);
         showError('Failed to generate token: ' + (writeErr.message || writeErr));
         btn.disabled = false;
         btn.textContent = 'Generate Token';
