@@ -45,7 +45,10 @@
                  placeholder="9876543210" maxlength="10" inputmode="numeric" pattern="[0-9]*">
         </div>
 
-        <button class="btn btn-primary btn-block" id="generateBtn" style="background:#F7D02B;color:#212121;" onclick="generateToken()">
+        <button class="btn btn-primary btn-block"
+                id="generateBtn"
+                style="background:#F7D02B;color:#212121;"
+                onclick="generateToken()">
           Generate Token
         </button>
       </div>
@@ -56,7 +59,9 @@
           <div class="big-token" id="tokenNumberDisplay">T-1</div>
           <div class="sub-text">Delivery Target: <span id="targetDisplay">20</span> Mins</div>
           <div style="font-size:15px;margin-top:8px;" id="partyDisplay"></div>
-          <button class="btn btn-primary" onclick="resetForm()" style="margin-top:20px;">
+          <button class="btn btn-primary"
+                  onclick="resetForm()"
+                  style="margin-top:20px;">
             Check-in Another Customer
           </button>
         </div>
@@ -70,6 +75,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
   <script src="../assets/js/firebase-config.js"></script>
   <script>
+    // Global UI state
     let selectedParty = null;
     let allParties = [];
     let searchTimeout = null;
@@ -79,8 +85,11 @@
       setupSearchListener();
     });
 
+    // -----------------------------------------------------------------
+    // Load parties for the dropdown
+    // -----------------------------------------------------------------
     function loadParties() {
-      db.collection("parties").get()
+      db.collection('parties').get()
         .then(snapshot => {
           allParties = [];
           snapshot.forEach(doc => {
@@ -89,9 +98,11 @@
           });
           allParties.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
         })
-        .catch(err => console.warn("Parties load failed:", err));
+        .catch(err => console.warn('Parties load failed:', err));
     }
-
+    // -----------------------------------------------------------------
+    // Search dropdown handling
+    // -----------------------------------------------------------------
     function setupSearchListener() {
       const input = document.getElementById('partySearch');
       const dropdown = document.getElementById('partyDropdown');
@@ -100,16 +111,15 @@
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
           const query = input.value.trim().toLowerCase();
-          if (query.length === 0) {
-            dropdown.classList.remove('show');
-            return;
-          }
+          if (!query) { dropdown.classList.remove('show'); return; }
+
           const filtered = allParties.filter(p =>
             p.code.toLowerCase().includes(query) ||
             p.name.toLowerCase().includes(query)
           );
+
           dropdown.innerHTML = '';
-          if (filtered.length === 0) {
+          if (!filtered.length) {
             dropdown.innerHTML = '<div class="dropdown-item" style="color:#999;">No parties found</div>';
           } else {
             filtered.slice(0, 50).forEach(p => {
@@ -144,40 +154,74 @@
       }
     });
 
-    document.getElementById('mobileNumber').addEventListener('input', (e) => {
+    // -----------------------------------------------------------------
+    // Mobile number sanitisation
+    // -----------------------------------------------------------------
+    document.getElementById('mobileNumber').addEventListener('input', e => {
       e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
     });
 
     // -----------------------------------------------------------------
-    // Atomic token number generation using a Firestore transaction
+    // Helper: simple delay (Promise) for back‑off
     // -----------------------------------------------------------------
-    function getNextTokenNumber(date) {
+    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // -----------------------------------------------------------------
+    // Get next token number using a Firestore transaction (with retries)
+    // -----------------------------------------------------------------
+    async function getNextTokenNumber(date, maxRetries = 5) {
       const counterRef = db.collection('counters').doc(date);
-      return db.runTransaction(async (t) => {
-        const doc = await t.get(counterRef);
-        let count = 0;
-        if (doc.exists) {
-          count = doc.data().count || 0;
+      let attempt = 0;
+      while (true) {
+        try {
+          return await db.runTransaction(async t => {
+            const doc = await t.get(counterRef);
+            let count = 0;
+            if (doc.exists) count = doc.data().count || 0;
+            const newCount = count + 1;
+            t.set(counterRef, { count: newCount }, { merge: true });
+            return `T-${newCount}`;
+          });
+        } catch (err) {
+          const is429 = err.code === 'resource-exhausted' || err.code === 'aborted' || (err.message && err.message.includes('429'));
+          if (is429 && attempt < maxRetries) {
+            const backoff = Math.pow(2, attempt) * 200; // 200ms, 400ms, 800ms, …
+            console.warn(`Retry ${attempt + 1}/${maxRetries} after 429 – waiting ${backoff}ms`);
+            await delay(backoff);
+            attempt++;
+            continue;
+          }
+          throw err;
         }
-        const newCount = count + 1;
-        t.set(counterRef, { count: newCount }, { merge: true });
-        return `T-${newCount}`;
-      });
+      }
     }
 
-    function generateToken() {
+    // -----------------------------------------------------------------
+    // Fallback: count existing tokens for the day (non‑transactional)
+    // -----------------------------------------------------------------
+    async function getNextTokenNumberFallback(date) {
+      const snap = await db.collection('tokens').where('date', '==', date).get();
+      let count = 0;
+      snap.forEach(() => count++);
+      return `T-${count + 1}`;
+    }
+
+    // -----------------------------------------------------------------
+    // Main token generation flow
+    // -----------------------------------------------------------------
+    async function generateToken() {
       const errorEl = document.getElementById('errorMsg');
       errorEl.classList.remove('show');
       errorEl.textContent = '';
 
       const customerName = selectedParty ? selectedParty.name : document.getElementById('walkinName').value.trim();
       if (!customerName) {
-        showError('Please select a registered party or enter a walk-in name');
+        showError('Please select a registered party or enter a walk‑in name');
         return;
       }
       const mobile = document.getElementById('mobileNumber').value.trim();
       if (mobile.length !== 10) {
-        showError('Please enter a valid 10-digit mobile number');
+        showError('Please enter a valid 10‑digit mobile number');
         return;
       }
 
@@ -189,46 +233,60 @@
       const today = formatDate(now);
       const checkInTime = now.getTime();
 
-      const timeout = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         showError('Request timed out. Check your internet and Firestore rules.');
         btn.disabled = false;
         btn.textContent = 'Generate Token';
-      }, 15000);
+      }, 30000); // 30 seconds
 
-      // Use transaction to get a unique token number
-      getNextTokenNumber(today)
-        .then(tokenNum => {
-          return db.collection('tokens').add({
-            tokenNumber: tokenNum,
-            customerCode: selectedParty ? selectedParty.code : null,
-            customerName: customerName,
-            isRegisteredParty: selectedParty !== null,
-            mobileNumber: mobile,
-            checkInTimeMillis: checkInTime,
-            targetMinutes: 20,
-            status: 'WAITING',
-            receiverName: null,
-            receiverPhone: null,
-            deliveryTimeMillis: null,
-            waitMinutes: null,
-            date: today
-          }).then(() => {
-            clearTimeout(timeout);
-            return tokenNum;
-          });
-        })
-        .then(tokenNum => {
-          showConfirmation({ tokenNumber: tokenNum, customerName, isRegisteredParty: selectedParty !== null });
-        })
-        .catch(err => {
-          clearTimeout(timeout);
-          showError('Failed to generate token: ' + err.message);
-          console.error('Token generation error:', err);
+      let tokenNum;
+      try {
+        tokenNum = await getNextTokenNumber(today);
+      } catch (err) {
+        console.error('Transaction failed, falling back:', err);
+        try {
+          tokenNum = await getNextTokenNumberFallback(today);
+          console.info('Fallback token generated:', tokenNum);
+        } catch (fallbackErr) {
+          console.error('Fallback also failed:', fallbackErr);
+          clearTimeout(timeoutId);
+          showError('Failed to generate token: ' + (fallbackErr.message || fallbackErr));
           btn.disabled = false;
           btn.textContent = 'Generate Token';
+          return;
+        }
+      }
+
+      try {
+        await db.collection('tokens').add({
+          tokenNumber: tokenNum,
+          customerCode: selectedParty ? selectedParty.code : null,
+          customerName: customerName,
+          isRegisteredParty: selectedParty !== null,
+          mobileNumber: mobile,
+          checkInTimeMillis: checkInTime,
+          targetMinutes: 20,
+          status: 'WAITING',
+          receiverName: null,
+          receiverPhone: null,
+          deliveryTimeMillis: null,
+          waitMinutes: null,
+          date: today
         });
+        clearTimeout(timeoutId);
+        showConfirmation({ tokenNumber: tokenNum, customerName, isRegisteredParty: selectedParty !== null });
+      } catch (writeErr) {
+        console.error('Error writing token document:', writeErr);
+        clearTimeout(timeoutId);
+        showError('Failed to generate token: ' + (writeErr.message || writeErr));
+        btn.disabled = false;
+        btn.textContent = 'Generate Token';
+      }
     }
 
+    // -----------------------------------------------------------------
+    // UI helpers
+    // -----------------------------------------------------------------
     function showConfirmation(data) {
       document.getElementById('formSection').style.display = 'none';
       document.getElementById('confirmationSection').style.display = 'block';
@@ -260,6 +318,13 @@
       const m = String(date.getMonth() + 1).padStart(2, '0');
       const d = String(date.getDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 3000);
     }
   </script>
 </body>

@@ -1,10 +1,10 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyChYHB0CZF2ZfBOBzWsozP9Fz533E0RJ-4",
-  authDomain: "navkartokensystem.firebaseapp.com",
-  projectId: "navkartokensystem",
-  storageBucket: "navkartokensystem.firebasestorage.app",
-  messagingSenderId: "1038142281136",
-  appId: "1:1038142281136:android:591aca47e4b6865ec97275"
+  apiKey: "AIzaSyBZMfJk5DFjS_ki1JuqOvkmccKTEjKpc-I",
+  authDomain: "navkartokensystem-v2.firebaseapp.com",
+  projectId: "navkartokensystem-v2",
+  storageBucket: "navkartokensystem-v2.firebasestorage.app",
+  messagingSenderId: "702129509092",
+  appId: "1:702129509092:android:f46a4256a6e0abfac212f1"
 };
 
 firebase.initializeApp(firebaseConfig);
