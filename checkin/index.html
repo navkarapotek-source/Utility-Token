@@ -168,11 +168,12 @@
 
     // -----------------------------------------------------------------
     // Get next token number using a Firestore transaction (with retries)
+    // Guarantees unique numbers even with concurrent requests
     // -----------------------------------------------------------------
-    async function getNextTokenNumber(date, maxRetries = 5) {
+    async function getNextTokenNumber(date, maxRetries = 15) {
       const counterRef = db.collection('counters').doc(date);
       let attempt = 0;
-      while (true) {
+      while (attempt <= maxRetries) {
         try {
           return await db.runTransaction(async t => {
             const doc = await t.get(counterRef);
@@ -185,25 +186,16 @@
         } catch (err) {
           const is429 = err.code === 'resource-exhausted' || err.code === 'aborted' || (err.message && err.message.includes('429'));
           if (is429 && attempt < maxRetries) {
-            const backoff = Math.pow(2, attempt) * 200; // 200ms, 400ms, 800ms, …
-            console.warn(`Retry ${attempt + 1}/${maxRetries} after 429 – waiting ${backoff}ms`);
+            const backoff = Math.pow(3, attempt) * 300; // 300ms, 900ms, 2700ms, …
+            console.warn(`Retry ${attempt + 1}/${maxRetries} – waiting ${backoff}ms`);
             await delay(backoff);
             attempt++;
-            continue;
+          } else {
+            throw err;
           }
-          throw err;
         }
       }
-    }
-
-    // -----------------------------------------------------------------
-    // Fallback: count existing tokens for the day (non‑transactional)
-    // -----------------------------------------------------------------
-    async function getNextTokenNumberFallback(date) {
-      const snap = await db.collection('tokens').where('date', '==', date).get();
-      let count = 0;
-      snap.forEach(() => count++);
-      return `T-${count + 1}`;
+      throw new Error('Transaction failed after all retries');
     }
 
     // -----------------------------------------------------------------
@@ -233,32 +225,19 @@
       const today = formatDate(now);
       const checkInTime = now.getTime();
 
-      const timeoutId = setTimeout(() => {
-        showError('Request timed out. Check your internet and Firestore rules.');
-        btn.disabled = false;
-        btn.textContent = 'Generate Token';
-      }, 30000); // 30 seconds
-
       let tokenNum;
       try {
         tokenNum = await getNextTokenNumber(today);
       } catch (err) {
-        console.error('Transaction failed, falling back:', err);
-        try {
-          tokenNum = await getNextTokenNumberFallback(today);
-          console.info('Fallback token generated:', tokenNum);
-        } catch (fallbackErr) {
-          console.error('Fallback also failed:', fallbackErr);
-          clearTimeout(timeoutId);
-          showError('Failed to generate token: ' + (fallbackErr.message || fallbackErr));
-          btn.disabled = false;
-          btn.textContent = 'Generate Token';
-          return;
-        }
+        console.error('Transaction failed:', err);
+        showError('Server busy. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Generate Token';
+        return;
       }
 
       try {
-        await db.collection('tokens').add({
+        await db.collection('tokens').doc(tokenNum).set({
           tokenNumber: tokenNum,
           customerCode: selectedParty ? selectedParty.code : null,
           customerName: customerName,
@@ -273,11 +252,9 @@
           waitMinutes: null,
           date: today
         });
-        clearTimeout(timeoutId);
         showConfirmation({ tokenNumber: tokenNum, customerName, isRegisteredParty: selectedParty !== null });
       } catch (writeErr) {
         console.error('Error writing token document:', writeErr);
-        clearTimeout(timeoutId);
         showError('Failed to generate token: ' + (writeErr.message || writeErr));
         btn.disabled = false;
         btn.textContent = 'Generate Token';
